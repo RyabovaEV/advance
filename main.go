@@ -2,35 +2,39 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"sync"
+	"time"
 )
 
 func main() {
-	code := make(chan int)
-	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
-		wg.Add(1)
-		go func() {
-			getHttpCode(code)
-			wg.Done()
-		}()
+	t := time.Now()
+	//arr := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
+	arr := make([]int, 100000000)
+	for i := 0; i < 100000000; i++ {
+		arr[i] = i + 1
 	}
-	go func() {
-		wg.Wait()
+	numGorutines := 3
+	partSize := len(arr) / numGorutines
+	ch := make(chan int, numGorutines)
 
-		close(code)
-	}()
-	for res := range code {
-		fmt.Printf("Код: %d\n", res)
+	for i := 0; i < numGorutines; i++ {
+		start := partSize * i
+		end := start + partSize
+		go summArray(arr[start:end], ch)
+	}
+	var summ int
+
+	for i := 0; i < numGorutines; i++ {
+		summ += <-ch
 	}
 
+	fmt.Printf("Сумма: %d\n", summ)
+	fmt.Println(time.Since(t))
 }
 
-func getHttpCode(codeCh chan int) {
-	resp, err := http.Get("HTTP://google.com")
-	if err != nil {
-		fmt.Printf("Ошибка %s\n", err.Error())
+func summArray(arr []int, summCh chan int) {
+	summPart := 0
+	for _, value := range arr {
+		summPart += value
 	}
-	codeCh <- resp.StatusCode
+	summCh <- summPart
 }
