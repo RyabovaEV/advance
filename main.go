@@ -1,40 +1,42 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"time"
+	"net/http"
+	"os"
+	"strings"
 )
 
-func main() {
-	t := time.Now()
-	//arr := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12}
-	arr := make([]int, 100000000)
-	for i := 0; i < 100000000; i++ {
-		arr[i] = i + 1
+func ping(url string, respCh chan int, errCh chan error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		errCh <- err
+		return
 	}
-	numGorutines := 3
-	partSize := len(arr) / numGorutines
-	ch := make(chan int, numGorutines)
-
-	for i := 0; i < numGorutines; i++ {
-		start := partSize * i
-		end := start + partSize
-		go summArray(arr[start:end], ch)
-	}
-	var summ int
-
-	for i := 0; i < numGorutines; i++ {
-		summ += <-ch
-	}
-
-	fmt.Printf("Сумма: %d\n", summ)
-	fmt.Println(time.Since(t))
+	respCh <- resp.StatusCode
 }
 
-func summArray(arr []int, summCh chan int) {
-	summPart := 0
-	for _, value := range arr {
-		summPart += value
+func main() {
+	path := flag.String("file", "url.txt", "path to URL file")
+	flag.Parse()
+	file, err := os.ReadFile(*path)
+	if err != nil {
+		panic(err.Error())
 	}
-	summCh <- summPart
+	urlSlice := strings.Split(string(file), "\n")
+	respCh := make(chan int)
+	errCh := make(chan error)
+	for _, url := range urlSlice {
+		url = strings.ReplaceAll(url, "\r", "")
+		go ping(url, respCh, errCh)
+	}
+	for range urlSlice {
+		select {
+		case errRes := <-errCh:
+			fmt.Println(errRes)
+		case res := <-respCh:
+			fmt.Println(res)
+		}
+	}
 }
